@@ -33,17 +33,12 @@ import (
 
 const _separator = "."
 
-// YAML is a provider that reads from one or more YAML sources. Many aspects
-// of the resulting provider's behavior can be altered by passing functional
-// options.
-//
-// By default, the YAML provider attempts to proactively catch common mistakes
-// by enabling gopkg.in/yaml.v2's strict mode. See the package-level
-// documentation on strict unmarshalling for details.
-//
-// When populating Go structs, values produced by the YAML provider correctly
-// handle all struct tags supported by gopkg.in/yaml.v2. See
-// https://godoc.org/gopkg.in/yaml.v2#Marshal for details.
+//YAML是从一个或多个YAML源读取的提供者。
+//结果提供者行为的许多方面可以通过传递函数选项来改变。
+//默认情况下，YAML提供者尝试主动捕捉常见错误
+//通过启用gopkg.in/yaml公司.v2的严格模式。
+//有关详细信息，请参阅关于严格解组的包级文档。
+//填充Go结构时，YAML提供程序正确生成的值
 type YAML struct {
 	name     string
 	raw      [][]byte
@@ -53,8 +48,9 @@ type YAML struct {
 	empty    bool
 }
 
-// NewYAML constructs a YAML provider. See the various YAMLOptions for
-// available tweaks to the default behavior.
+
+//NewYAML构造一个YAML提供者。
+//有关默认行为的可用调整，请参见各种YAMLOptions。
 func NewYAML(options ...YAMLOption) (*YAML, error) {
 	cfg := &config{
 		strict: true,
@@ -67,11 +63,8 @@ func NewYAML(options ...YAMLOption) (*YAML, error) {
 	if cfg.err != nil {
 		return nil, fmt.Errorf("error applying options: %v", cfg.err)
 	}
-
-	// Some sources shouldn't have environment variables expanded; protect those
-	// sources by escaping the contents. (Expanding before merging re-exposes a
-	// number of bugs, so we can't just selectively expand sources before
-	// merging.)
+	//有些源不应该扩展环境变量；通过转义内容来保护这些源。
+	//（合并前扩展会重新暴露出许多错误，因此我们不能在合并前选择性地扩展源代码。）
 	sourceBytes := make([][]byte, len(cfg.sources))
 	for i := range cfg.sources {
 		s := cfg.sources[i]
@@ -82,10 +75,8 @@ func NewYAML(options ...YAMLOption) (*YAML, error) {
 		sourceBytes[i] = escapeVariables(s.bytes)
 	}
 
-	// On construction, go through a full merge-serialize-deserialize cycle to
-	// catch any duplicated keys as early as possible (in strict mode). It also
-	// strips comments, which stops us from attempting environment variable
-	// expansion. (We'll expand environment variables next.)
+	//在构造时，经历一个完整的merge-serialize-deserialize循环，以尽早捕获任何重复的键（在严格模式下）。
+	//它还剥离了注释，从而阻止我们尝试环境变量扩展。（接下来我们将展开环境变量。）
 	merged, err := merge.YAML(sourceBytes, cfg.strict)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't merge YAML sources: %v", err)
@@ -116,22 +107,20 @@ func NewYAML(options ...YAMLOption) (*YAML, error) {
 	return y, nil
 }
 
-// Name returns the name of the provider. It defaults to "YAML".
+//Name返回提供程序的名称。默认为“YAML”。
 func (y *YAML) Name() string {
 	return y.name
 }
 
-// Get retrieves a value from the configuration. The supplied key is treated
-// as a period-separated path, with each path segment used as a map key. For
-// example, if the provider contains the YAML
+//Get从配置中检索值。提供的键被视为一个以周期分隔的路径，每个路径段都用作映射键。
+//例如，如果提供程序包含YAML
 //   foo:
 //     bar:
 //       baz: hello
 // then Get("foo.bar") returns a value holding
 //   baz: hello
 //
-// To get a value holding the entire configuration, use the Root constant as
-// the key.
+//要获取包含整个配置的值，请使用根常量作为键。
 func (y *YAML) Get(key string) Value {
 	return y.get(strings.Split(key, _separator))
 }
@@ -146,11 +135,9 @@ func (y *YAML) get(path []string) Value {
 	}
 }
 
-// at returns the unmarshalled representation of the value at a given path,
-// with a bool indicating whether the value was found.
+//at返回给定路径上值的未编组表示形式，并用bool指示是否找到该值。
 //
-// YAML mappings are unmarshalled as map[interface{}]interface{}, sequences as
-// []interface{}, and scalars as interface{}.
+//YAML映射被解组为map[interface{}]interface{}，序列被解组为[]interface{}，标量被解组为interface{}。
 func (y *YAML) at(path []string) (interface{}, bool) {
 	if y.empty {
 		return nil, false
@@ -158,17 +145,14 @@ func (y *YAML) at(path []string) (interface{}, bool) {
 
 	cur := y.contents
 	for _, segment := range path {
-		// Cast to a mapping type. If this fails, then we ended up on a path
-		// that didn't terminate on a sequence or a scalar.
+		//转换为映射类型。如果这失败了，那么我们就得到了一条不以序列或标量终止的路径。
 		m, ok := cur.(map[interface{}]interface{})
 		if !ok {
 			return nil, false
 		}
 
-		// Try resolving the segment as a string and then unmarshal the path
-		// segment for a comparable key. After all, YAML scalar types are more
-		// than strings (boolean, integer, etc). We'll prefer a string form to
-		// resolve ambiguous paths.
+		//尝试将段解析为字符串，然后为可比较的键解组路径段。
+		//毕竟，YAML标量类型不仅仅是字符串（boolean、integer等）。我们希望使用字符串形式来解析不明确的路径。
 		if _, ok := m[segment]; !ok {
 			var key interface{}
 			if err := yaml.Unmarshal([]byte(segment), &key); err != nil {
@@ -195,8 +179,7 @@ func (y *YAML) populate(path []string, i interface{}) error {
 	}
 	buf := &bytes.Buffer{}
 	if err := yaml.NewEncoder(buf).Encode(val); err != nil {
-		// Provider contents were produced by unmarshaling YAML, this isn't
-		// possible.
+		//提供者内容是由解编YAML生成的，这是不可能的。
 		err := fmt.Errorf(
 			"couldn't marshal config at key %s to YAML: %v",
 			strings.Join(path, _separator),
@@ -206,8 +189,7 @@ func (y *YAML) populate(path []string, i interface{}) error {
 	}
 	dec := yaml.NewDecoder(buf)
 	dec.SetStrict(y.strict)
-	// Decoding can't ever return EOF, since encoding any value is guaranteed to
-	// produce non-empty YAML.
+	//解码永远不能返回EOF，因为编码任何值都保证生成非空YAML。
 	return dec.Decode(i)
 }
 
@@ -217,19 +199,16 @@ func (y *YAML) withDefault(d interface{}) (*YAML, error) {
 		return nil, fmt.Errorf("can't marshal default to YAML: %v", err)
 	}
 
-	// It's possible that one of the sources used when initially configuring the
-	// provider was nothing but a top-level null, but that a higher-priority
-	// source included some additional data. In that case, the result of merging
-	// all the sources is non-null. However, the explicitly-null source should
-	// override all data provided by withDefault. To handle this correctly, we
-	// must use the new defaults as the lowest-priority source and re-merge the
-	// original sources.
+	//在最初配置
+
+//提供程序只不过是一个顶级null，但更高优先级的源包含一些额外的数据。
+//在这种情况下，合并所有源的结果是非空的。但是，显式空源应该覆盖withDefault提供的所有数据。
+//为了正确地处理这个问题，我们必须使用新的默认值作为最低优先级的源，并重新合并原始源。
 	opts := []YAMLOption{
 		Name(y.name),
 		Expand(y.lookup),
 		Source(rawDefault),
-		// y.raw contains the original sources with escaping for RawSources so
-		// appendSourcs won't double-expand them.
+		//raw包含原始源，并对RawSources进行转义soappendsources不会对其进行双重扩展。
 		appendSources(y.raw),
 	}
 	if !y.strict {
@@ -238,21 +217,17 @@ func (y *YAML) withDefault(d interface{}) (*YAML, error) {
 	return NewYAML(opts...)
 }
 
-// A Value is a subset of a provider's configuration.
+//值是提供者配置的子集。
 type Value struct {
 	path     []string
 	provider *YAML
 }
 
-// NewValue is a highly error-prone constructor preserved only for backward
-// compatibility. If value and found don't match the contents of the provider
-// at the supplied key, it panics.
-//
-// Deprecated: this internal constructor was mistakenly exported in the
-// initial release of this package, but its behavior was often very
-// surprising. To guarantee sane behavior without changing the function
-// signature, input validation and panics were added in version 1.2. In all
-// cases, it's both safer and less verbose to use Provider.Get directly.
+//NewValue是一个非常容易出错的构造函数，仅为向后兼容而保留。
+//如果value和found与提供的键处的提供程序的内容不匹配，它将崩溃。
+//不推荐使用：这个内部构造函数在这个包的初始版本中被错误地导出，但是它的行为常常非常令人惊讶。
+//为了在不改变函数签名的情况下保证行为正常，在版本1.2中添加了输入验证和panics。
+//在所有情况下，使用它既安全又不冗长提供者。获取直接。
 func NewValue(p Provider, key string, value interface{}, found bool) Value {
 	actual := p.Get(key)
 	if has := actual.HasValue(); has != found {
@@ -276,23 +251,21 @@ func NewValue(p Provider, key string, value interface{}, found bool) Value {
 	return actual
 }
 
-// Source returns the name of the value's provider.
+//Source返回值提供程序的名称。
 func (v Value) Source() string {
 	return v.provider.Name()
 }
 
-// Populate unmarshals the value into the target struct, much like
-// json.Unmarshal or yaml.Unmarshal. When populating a struct with some fields
-// already set, data is deep-merged as described in the package-level
-// documentation.
+
+//Populate将值解组到目标结构中，与json.Unmarshal文件或者yaml.解组. 
+//当用一些已经设置的字段填充结构时，数据将按照包级别中的描述进行深度合并文档。
 func (v Value) Populate(target interface{}) error {
 	return v.provider.populate(v.path, target)
 }
 
-// Get dives further into the configuration, pulling out more deeply nested
-// values. The supplied path is split on periods, and each segment is treated
-// as a nested map key. For example, if the current value holds the YAML
-// configuration
+
+//进一步深入到配置中，提取更深入的嵌套值。
+//提供的路径按句点拆分，并且每个段都被视为嵌套的映射键。例如，如果当前值包含YAML配置
 //   foo:
 //     bar:
 //       baz: quux
@@ -308,15 +281,11 @@ func (v Value) Get(path string) Value {
 	return v.provider.get(extended)
 }
 
-// HasValue checks whether any configuration is available at this key.
-//
-// It doesn't distinguish between configuration supplied during provider
-// construction and configuration applied by WithDefault. If the value has
-// explicitly been set to nil, HasValue is true.
-//
-// Deprecated: this function has little value and is often confusing. Rather
-// than checking whether a value has any configuration available, Populate a
-// struct with appropriate defaults and zero values.
+//HasValue检查此键是否有任何配置可用。
+
+//它不区分在提供程序构造期间提供的配置和默认应用的配置。
+//如果该值已显式设置为nil，则HasValue为true。
+//不赞成：这个函数没有什么价值，而且常常令人困惑。与其检查值是否有任何可用的配置，不如用适当的默认值和零值填充结构。
 func (v Value) HasValue() bool {
 	_, ok := v.provider.at(v.path)
 	return ok
@@ -326,34 +295,24 @@ func (v Value) String() string {
 	return fmt.Sprint(v.Value())
 }
 
-// Value unmarshals the configuration into interface{}.
-//
-// Deprecated: in a strongly-typed language, unmarshaling configuration into
-// interface{} isn't helpful. It's safer and easier to use Populate with a
-// strongly-typed struct.
+//值将配置解组到接口{}。
+
+//不推荐：在强类型语言中，将配置解组到接口{}中是没有帮助的。使用强类型结构填充更安全、更容易。
 func (v Value) Value() interface{} {
-	// Simplest way to ensure that the caller can't mutate the configuration is
-	// to deep-copy with Populate.
+	//确保调用者不能改变配置的最简单方法是使用Populate进行深度复制。
 	var i interface{}
 	if err := v.Populate(&i); err != nil {
-		// Unreachable, since we've already ensured that the underlying YAML is
-		// valid. Can't alter this signature to include an error without breaking
-		// backward compatibility.
+		//无法访问，因为我们已经确保了底层YAML是有效的。
+		//在不破坏向后兼容性的情况下，无法更改此签名以包含错误。
 		panic(unreachable.Wrap(err).Error())
 	}
 	return i
 }
 
-// WithDefault supplies a default configuration for the value. The default is
-// serialized to YAML, and then the existing configuration sources are
-// deep-merged into it using the merge logic described in the package-level
-// documentation. Note that applying defaults requires re-expanding
-// environment variables, which may have unexpected results if the environment
-// changes after provider construction.
-//
-// Deprecated: the deep-merging behavior of WithDefault is complex, especially
-// when applied multiple times. Instead, create a Go struct, set any defaults
-// directly on the struct, then call Populate.
+//WithDefault为值提供默认配置。默认值被序列化为YAML，然后使用包级文档中描述的合并逻辑将现有配置源深度合并到其中。
+//ni请注意，应用默认值需要重新扩展环境变量，如果在提供程序构造之后环境发生更改，则可能会产生意外的结果。
+
+//已弃用：WithDefault的深度合并行为非常复杂，尤其是在多次应用时。相反，创建一个Go结构，直接在结构上设置任何默认值，然后调用Populate。
 func (v Value) WithDefault(d interface{}) (Value, error) {
 	fallback := d
 	for i := len(v.path) - 1; i >= 0; i-- {
